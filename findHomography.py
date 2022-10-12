@@ -118,5 +118,5 @@ for i in np.arange(len(RGB_images)):
 
 
 # cv.destroyAllWindows()
-print(H_matrx)
+# print(H_matrx)
 np.save("H_matrx.npy", H_matrx)
