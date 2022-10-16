@@ -47,8 +47,8 @@ criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 # Arrays to store object points and image points from all the images.
 IR_points = [] # 3d point in real world space
 RGB_points = [] # 2d points in image plane.
-IR_images = sorted(glob.glob('IR_2/*.png'))
-RGB_images = sorted(glob.glob('RGB_2/*.jpg'))
+IR_images = sorted(glob.glob('data/IR_2/*.png'))
+RGB_images = sorted(glob.glob('data/RGB_2/*.jpg'))
 K = np.array([[1.73550154e+03, 0.00000000e+00, 6.58548462e+02],
               [0.00000000e+00, 1.73278080e+03, 5.20006510e+02],
               [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
@@ -113,8 +113,8 @@ for i in np.arange(len(RGB_images)):
 
             # print(Rs[0])
             # print(cv.Rodrigues(Rs[0])[0])
-            print(rotationMatrixToEulerAngles(Rs[0]))
-            # print(Ts[0])
+            # print(rotationMatrixToEulerAngles(Rs[0]))
+            print(Ts[0])
 
 
 # cv.destroyAllWindows()

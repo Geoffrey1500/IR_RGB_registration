@@ -9,7 +9,7 @@ objp[:,:2] = np.mgrid[0:11,0:8].T.reshape(-1,2)*45
 # Arrays to store object points and image points from all the images.
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
-images = glob.glob('RGB_2/*.jpg')
+images = glob.glob('data/RGB_2/*.jpg')
 for fname in images:
     img = cv.imread(fname)
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)

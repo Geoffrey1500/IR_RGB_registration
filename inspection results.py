@@ -105,8 +105,8 @@ def translation(input_im1, input_im2):
     return [t0, t1]
 
 
-IR_images = sorted(glob.glob('IR_test/*.jpg'))
-RGB_images = sorted(glob.glob('RGB_test/*.jpg'))
+IR_images = sorted(glob.glob('data/IR_2/*.png'))
+RGB_images = sorted(glob.glob('data/RGB_2/*.jpg'))
 
 H_matrix_set = np.load("H_matrx.npy")
 # aaa = M[1, :, :]
@@ -117,10 +117,13 @@ for i in np.arange(len(RGB_images)):
 
     RGB_img_warp = cv.warpPerspective(RGB_img, H_matrix_set[5, :, :], (IR_img.shape[1], IR_img.shape[0]))
 
+    print(RGB_images[i][11::])
+    cv2.imwrite("./data/wraped_RGB_2/" + RGB_images[i][11::], RGB_img_warp)
+
     # Define 2x3 or 3x3 matrices and initialize the matrix to identity
     initial_matrix = H_matrix_set[5, :, :]
     initial_matrix = initial_matrix.astype(np.float32)
 
-    a, b = translation(IR_img, RGB_img_warp)
-    print(a, b)
+    # a, b = translation(IR_img, RGB_img_warp)
+    # print(a, b)
 
