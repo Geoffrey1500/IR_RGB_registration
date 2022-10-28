@@ -4,6 +4,8 @@ import cv2 as cv
 import glob
 import timeit
 from numpy.fft import fft2, ifft2, fftshift
+from pystackreg import StackReg
+from skimage import io
 
 
 # Enhanced Correlation Coefficient (ECC) Maximization
@@ -66,8 +68,8 @@ def translation(input_im1, input_im2):
     im0 = cv2.cvtColor(input_im1, cv2.COLOR_BGR2GRAY)
     im1 = cv2.cvtColor(input_im2, cv2.COLOR_BGR2GRAY)
 
-    cv.imshow("Image 1", im0)
-    cv.imshow("Image 2", im1)
+    # cv.imshow("Image 1", im0)
+    # cv.imshow("Image 2", im1)
 
     key = cv.waitKey(0)
     if (key == 'q'):
@@ -104,9 +106,47 @@ def translation(input_im1, input_im2):
 
     return [t0, t1]
 
+def translation2(input_im1, input_im2):
+    # Convert images to grayscale
+    im0 = cv2.cvtColor(input_im1, cv2.COLOR_BGR2GRAY)
+    im1 = cv2.cvtColor(input_im2, cv2.COLOR_BGR2GRAY)
 
-IR_images = sorted(glob.glob('data/IR_2/*.png'))
-RGB_images = sorted(glob.glob('data/RGB_2/*.jpg'))
+    # cv.imshow("Image 1", im0)
+    # cv.imshow("Image 2", im1)
+
+    key = cv.waitKey(0)
+    if (key == 'q'):
+        exit()
+    cv.destroyAllWindows()
+
+    rows, cols = im0.shape
+    sr = StackReg(StackReg.TRANSLATION)
+    sr.register(im0, im1)
+    out = sr.transform(im1)
+    out = out.astype(np.uint8)
+    im2_aligned = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+
+
+    # Show final results
+    cv.imshow("Image 1", input_im1)
+    cv.imshow("Image 2", input_im2)
+    cv.imshow("Aligned Image 1", im2_aligned)
+    # cv.waitKey(0)
+    #
+    dst = cv.addWeighted(input_im1, 0.5, im2_aligned, 0.5, 0)
+    # cv.imshow('warp_RGB_img', RGB_img_warp)
+    # cv.imshow(IR_images[i], IR_img)
+    cv.imshow('fused_img', dst)
+    key = cv.waitKey(0)
+    if key == 'q':
+        exit()
+    cv.destroyAllWindows()
+
+    return
+
+
+IR_images = sorted(glob.glob('data/IR_test/*.jpg'))
+RGB_images = sorted(glob.glob('data/RGB_test/*.jpg'))
 
 H_matrix_set = np.load("H_matrx.npy")
 # aaa = M[1, :, :]
@@ -118,12 +158,13 @@ for i in np.arange(len(RGB_images)):
     RGB_img_warp = cv.warpPerspective(RGB_img, H_matrix_set[5, :, :], (IR_img.shape[1], IR_img.shape[0]))
 
     print(RGB_images[i][11::])
-    cv2.imwrite("./data/wraped_RGB_2/" + RGB_images[i][11::], RGB_img_warp)
+    # cv2.imwrite("./data/wraped_RGB_2/" + RGB_images[i][11::], RGB_img_warp)
 
     # Define 2x3 or 3x3 matrices and initialize the matrix to identity
     initial_matrix = H_matrix_set[5, :, :]
     initial_matrix = initial_matrix.astype(np.float32)
 
     # a, b = translation(IR_img, RGB_img_warp)
+    translation2(IR_img, RGB_img_warp)
     # print(a, b)
 
