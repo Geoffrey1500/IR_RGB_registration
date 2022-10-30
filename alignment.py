@@ -8,6 +8,26 @@ from pystackreg import StackReg
 from skimage import io
 
 
+def get_image(im1_, im2_, H_matrix_):
+    # Convert images to grayscale
+    im1_gray = cv2.cvtColor(im1_, cv2.COLOR_BGR2GRAY)
+
+    im2_warped = cv.warpPerspective(im2_, H_matrix_[5, :, :], (im1_gray.shape[1], im1_gray.shape[0]))
+    im2_warped_gray = cv2.cvtColor(im2_warped, cv2.COLOR_BGR2GRAY)
+
+    cv.imshow("Image 1", im1_)
+    cv.imshow("Image 2", im2_)
+    cv.imshow("Image 3", im2_warped)
+
+    key = cv.waitKey(0)
+    if (key == 'q'):
+        exit()
+    cv.destroyAllWindows()
+
+    return im1_gray, im2_warped_gray
+
+
+
 # Enhanced Correlation Coefficient (ECC) Maximization
 def eccAlign(input_im1, input_im2, mode=cv2.MOTION_TRANSLATION, num_of_iters=500, term_eps=1e-4):
     # Convert images to grayscale
@@ -63,22 +83,13 @@ def eccAlign(input_im1, input_im2, mode=cv2.MOTION_TRANSLATION, num_of_iters=500
 
 
 # FFT phase correlation
-def translation(input_im1, input_im2):
-    # Convert images to grayscale
-    im0 = cv2.cvtColor(input_im1, cv2.COLOR_BGR2GRAY)
-    im1 = cv2.cvtColor(input_im2, cv2.COLOR_BGR2GRAY)
+def translation(input_im1, input_im2, H_matrix_):
 
-    # cv.imshow("Image 1", im0)
-    # cv.imshow("Image 2", im1)
+    im1_, im2_ = get_image(input_im1, input_im2, H_matrix_)
 
-    key = cv.waitKey(0)
-    if (key == 'q'):
-        exit()
-    cv.destroyAllWindows()
-
-    rows, cols = im0.shape
-    f0 = fft2(im0)
-    f1 = fft2(im1)
+    rows, cols = im1_.shape
+    f0 = fft2(im1_)
+    f1 = fft2(im2_)
     ir = abs(ifft2((f0 * f1.conjugate()) / (abs(f0) * abs(f1))))
     t0, t1 = np.unravel_index(np.argmax(ir), [rows, cols])
     if t0 > rows // 2:
@@ -87,15 +98,15 @@ def translation(input_im1, input_im2):
         t1 -= cols
 
     m_tran = np.float32([[1, 0, t1], [0, 1, t0]])
-    im2_aligned = cv2.warpAffine(input_im2, m_tran, (cols, rows))
+    im2_aligned = cv2.warpAffine(im2_, m_tran, (cols, rows))
 
     # Show final results
-    cv.imshow("Image 1", input_im1)
-    cv.imshow("Image 2", input_im2)
+    cv.imshow("Image 1", im1_)
+    cv.imshow("Image 2", im2_)
     cv.imshow("Aligned Image 1", im2_aligned)
     # cv.waitKey(0)
     #
-    dst = cv.addWeighted(input_im1, 0.5, im2_aligned, 0.5, 0)
+    dst = cv.addWeighted(im1_, 0.5, im2_aligned, 0.5, 0)
     # cv.imshow('warp_RGB_img', RGB_img_warp)
     # cv.imshow(IR_images[i], IR_img)
     cv.imshow('fused_img', dst)
