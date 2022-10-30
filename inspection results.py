@@ -103,7 +103,7 @@ def translation(input_im1, input_im2):
     if key == 'q':
         exit()
     cv.destroyAllWindows()
-
+    print(m_tran)
     return [t0, t1]
 
 def translation2(input_im1, input_im2):
@@ -165,6 +165,6 @@ for i in np.arange(len(RGB_images)):
     initial_matrix = initial_matrix.astype(np.float32)
 
     # a, b = translation(IR_img, RGB_img_warp)
-    translation2(IR_img, RGB_img_warp)
+    translation(IR_img, RGB_img_warp)
     # print(a, b)
 

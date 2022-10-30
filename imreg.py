@@ -19,6 +19,28 @@ import numpy as np
 import matplotlib.pyplot as plt  # matplotlibの描画系
 import math
 import sys
+import glob
+from numpy.fft import fft2, ifft2, fftshift
+
+
+def get_image(im1_, im2_, H_matrix_):
+    # Convert images to grayscale
+    im1_gray = cv2.cvtColor(im1_, cv2.COLOR_BGR2GRAY)
+
+    im2_warped = cv2.warpPerspective(im2_, H_matrix_, (im1_gray.shape[1], im1_gray.shape[0]))
+    im2_warped_gray = cv2.cvtColor(im2_warped, cv2.COLOR_BGR2GRAY)
+
+    cv2.imshow("Image 1", im1_)
+    cv2.imshow("Image 2", im2_)
+    cv2.imshow("Image 3", im2_warped)
+
+    # key = cv2.waitKey(0)
+    # if key == 'q':
+    #     exit()
+    cv2.waitKey(50)
+    cv2.destroyAllWindows()
+
+    return im1_gray, im2_warped_gray
 
 
 class imregpoc:
@@ -35,10 +57,15 @@ class imregpoc:
         self.peak = 0
         self.affine = np.float32([1, 0, 0, 0, 1, 0]).reshape(2, 3)
         self.perspective = np.float32([1, 0, 0, 0, 1, 0, 0, 0, 0]).reshape(3, 3)
+        self.translation = np.float32([1, 0]).reshape(2, 1)
 
         # set ref, cmp, center
-        self.fft_padding()
-        self.match()
+        # self.fft_padding()
+        if self.fitting != "Translation":
+            self.fft_padding_my()
+            self.match()
+        else:
+            self.match_translation()
 
     def define_fftsize(self):
         refshape = self.orig_ref.shape
@@ -57,6 +84,11 @@ class imregpoc:
         maxsize = self.define_fftsize()
         self.ref = self.padding_image(self.orig_ref, [maxsize, maxsize])
         self.cmp = self.padding_image(self.orig_cmp, [maxsize, maxsize])
+        self.center = np.array(self.ref.shape) / 2.0
+
+    def fft_padding_my(self):
+        self.ref = self.padding_image(self.orig_ref, [self.orig_ref.shape[0], self.orig_ref.shape[1]])
+        self.cmp = self.padding_image(self.orig_cmp, [self.orig_cmp.shape[0], self.orig_cmp.shape[1]])
         self.center = np.array(self.ref.shape) / 2.0
 
     def fix_params(self):
@@ -170,6 +202,24 @@ class imregpoc:
         self.perspective = self.poc2warp(self.center, self.param)
         self.affine = self.perspective[0:2, :]
         self.fix_params()
+
+
+    def match_translation(self):
+        rows, cols = self.orig_ref.shape
+        f0 = fft2(self.orig_ref)
+        f1 = fft2(self.orig_cmp)
+        ir = abs(ifft2((f0 * f1.conjugate()) / (abs(f0) * abs(f1))))
+        t0, t1 = np.unravel_index(np.argmax(ir), [rows, cols])
+        if t0 > rows // 2:
+            t0 -= rows
+        if t1 > cols // 2:
+            t1 -= cols
+
+        #results
+        self.translation = np.float32([[1, 0, t1], [0, 1, t0]])
+        self.param = [-t1, -t0, 0, 1 / 1]
+        self.peak = 0
+
 
     def poc2warp(self, center, param):
         cx, cy = center
@@ -362,8 +412,10 @@ class imregpoc:
         return [xmin, ymin, xmax, ymax]
 
     def stitching(self, perspective=None):
-        if perspective == None:
+        # print(perspective, "aaa")
+        if perspective is None:
             perspective = self.perspective
+            # print(perspective, "aaa")
         xmin, ymin, xmax, ymax = self.convertRectangle()
         hei, wid = self.orig_ref.shape
         sxmax = max(xmax, wid - 1)
@@ -380,6 +432,36 @@ class imregpoc:
         plt.figure()
         plt.imshow(warpedimage, vmin=warpedimage.min(), vmax=warpedimage.max(), cmap='gray')
         plt.show()
+
+    def display_my(self, perspective=None):
+        hei, wid = self.orig_ref.shape
+
+        if self.fitting != "Translation":
+            if perspective is None:
+                perspective = self.perspective
+
+            newTrans = np.linalg.inv(perspective)
+            # print(newTrans)
+            warpedimage = cv2.warpPerspective(self.orig_cmp, newTrans, (wid, hei),
+                                              flags=cv2.INTER_LINEAR + cv2.WARP_FILL_OUTLIERS)
+        else:
+            newTrans = self.translation
+            # print(newTrans)
+            warpedimage = cv2.warpAffine(self.orig_cmp, newTrans, (wid, hei))
+
+
+
+        aaa = self.orig_ref.astype(np.uint8)
+        bbb = warpedimage.astype(np.uint8)
+
+        dst = cv2.addWeighted(aaa, 0.5, bbb, 0.5, 0)
+        # cv.imshow('warp_RGB_img', RGB_img_warp)
+        # cv.imshow(IR_images[i], IR_img)
+        cv2.imshow('fused_img', dst)
+        key = cv2.waitKey(0)
+        if key == 'q':
+            exit()
+        cv2.destroyAllWindows()
 
 
 class TempMatcher:
@@ -535,28 +617,86 @@ class TempMatcher:
         plt.show()
 
 
+def result_inspect(im1_my_, im2_my_, transmat):
+    im1_gray = cv2.cvtColor(im1_my_, cv2.COLOR_BGR2GRAY)
+
+    hei, wid = im1_gray.shape
+    warpedimage = cv2.warpAffine(im2_my_, transmat, (wid, hei))
+
+
+    dst = cv2.addWeighted(im1_my_, 0.5, warpedimage, 0.5, 0)
+    # cv.imshow('warp_RGB_img', RGB_img_warp)
+    # cv.imshow(IR_images[i], IR_img)
+    cv2.imshow('fused_img', dst)
+    # key = cv2.waitKey(0)
+    # if key == 'q':
+    #     exit()
+    cv2.waitKey(50)
+    cv2.destroyAllWindows()
+
+    return warpedimage, dst
+
+
 if __name__ == "__main__":
-    # Read image
-    ref = cv2.imread('data/IR_test/IR_12390.jpg', 0)
-    cmp = cv2.imread('data/RGB_test/DC_12391.jpg', 0)
-    plt.imshow(ref, cmap="gray")
+    IR_images = sorted(glob.glob('data/IR_test/*.jpg'))
+    RGB_images = sorted(glob.glob('data/RGB_test/*.jpg'))
 
-    # reference parameter (you can change this)
-    match = imregpoc(ref, cmp)
-    print(match.peak, match.param)
-    match_para = imregpoc(ref, cmp, fitting='Parabola')
-    print(match_para.peak, match_para.param)
-    match_cog = imregpoc(ref, cmp, fitting='COG')
-    print(match_cog.peak, match_cog.param)
+    H_matrix_set = np.load("H_matrx.npy")
+    # aaa = M[1, :, :]
 
-    match.stitching()
-    match_para.stitching()
-    match_cog.stitching()
+    for i in np.arange(len(RGB_images)):
+        IR_img = cv2.imread(IR_images[i])
+        RGB_img = cv2.imread(RGB_images[i])
 
-    center = np.array(ref.shape) / 2
-    persp = match.poc2warp(center, [-5.40E+01, -2.00E+00, 9.72E+01 / 180 * math.pi, 6.03E-01])
-    match.stitching(persp)
-    # Save particular Image
-    # match.saveMat(match.LPA,'LPA.png')
-    # match.saveMat(match.LPA_filt,'LPA_filt.png')
-    # match.saveMat(match.LA,'LA.png')
+        # Define 2x3 or 3x3 matrices and initialize the matrix to identity
+        initial_matrix = H_matrix_set[5, :, :]
+        initial_matrix = initial_matrix.astype(np.float32)
+
+        # Read image
+        ref, cmp = get_image(IR_img, RGB_img, initial_matrix)
+
+        # reference parameter (you can change this)
+        match = imregpoc(ref, cmp)
+        print(match.peak, match.param, match.isSucceed())
+        match_para = imregpoc(ref, cmp, fitting='Parabola')
+        print(match_para.peak, match_para.param, match_para.isSucceed())
+        match_cog = imregpoc(ref, cmp, fitting='Translation')
+        print(match_cog.peak, match_cog.param, match_cog.isSucceed())
+
+        result_sum = match.isSucceed()+match_para.isSucceed()+match_cog.isSucceed()
+        result_std_x = np.std([match.param[0], match_para.param[0], match_cog.param[0]])
+        result_std_y = np.std([match.param[1], match_para.param[1], match_cog.param[1]])
+
+        RGB_img_warp = cv2.warpPerspective(RGB_img, initial_matrix, (IR_img.shape[1]+10, IR_img.shape[0]+10))
+
+        if np.average([result_std_y, result_std_x]) <= 1.5:
+            m_tran = np.float32([[1, 0, -np.average([match.param[0], match_para.param[0], match_cog.param[0]])],
+                                 [0, 1, -np.average([match.param[1], match_para.param[1], match_cog.param[1]])]])
+            print(m_tran)
+            aligned_RGB, merged = result_inspect(IR_img, RGB_img_warp, m_tran)
+        else:
+            m_tran = np.float32([[1, 0, 0], [0, 1, -4]])
+            print(m_tran)
+            aligned_RGB, merged = result_inspect(IR_img, RGB_img_warp, m_tran)
+
+        print("./data/wraped_RGB_3/" + RGB_images[i][14::])
+        cv2.imwrite("./data/wraped_RGB_3/" + RGB_images[i][14::], aligned_RGB)
+        cv2.imwrite("./data/merged_3/" + RGB_images[i][14::], merged)
+
+        # match.stitching()
+        # match_para.stitching()
+        # match_cog.stitching()
+
+        # match.display_my()
+        # match_para.display_my()
+        # match_cog.display_my()
+
+        # Save particular Image
+        # match.saveMat(match.LPA,'LPA.png')
+        # match.saveMat(match.LPA_filt,'LPA_filt.png')
+        # match.saveMat(match.LA,'LA.png')
+
+        # a, b = translation(IR_img, RGB_img_warp)
+        # translation2(IR_img, RGB_img_warp)
+        # print(a, b)
+
