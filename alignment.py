@@ -132,12 +132,11 @@ def translation2(input_im1, input_im2):
 
     rows, cols = im0.shape
     sr = StackReg(StackReg.TRANSLATION)
-    sr.register(im0, im1)
+    tr_mat = sr.register(im0, im1)
     out = sr.transform(im1)
     out = out.astype(np.uint8)
     im2_aligned = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
-
-
+    print(tr_mat, "outoutout")
     # Show final results
     cv.imshow("Image 1", input_im1)
     cv.imshow("Image 2", input_im2)

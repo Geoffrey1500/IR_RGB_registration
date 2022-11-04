@@ -21,6 +21,7 @@ import math
 import sys
 import glob
 from numpy.fft import fft2, ifft2, fftshift
+from pystackreg import StackReg
 
 
 def get_image(im1_, im2_, H_matrix_):
@@ -30,15 +31,15 @@ def get_image(im1_, im2_, H_matrix_):
     im2_warped = cv2.warpPerspective(im2_, H_matrix_, (im1_gray.shape[1], im1_gray.shape[0]))
     im2_warped_gray = cv2.cvtColor(im2_warped, cv2.COLOR_BGR2GRAY)
 
-    cv2.imshow("Image 1", im1_)
-    cv2.imshow("Image 2", im2_)
-    cv2.imshow("Image 3", im2_warped)
+    # cv2.imshow("Image 1", im1_)
+    # cv2.imshow("Image 2", im2_)
+    # cv2.imshow("Image 3", im2_warped)
 
     # key = cv2.waitKey(0)
     # if key == 'q':
     #     exit()
-    cv2.waitKey(50)
-    cv2.destroyAllWindows()
+    # cv2.waitKey(50)
+    # cv2.destroyAllWindows()
 
     return im1_gray, im2_warped_gray
 
@@ -61,11 +62,13 @@ class imregpoc:
 
         # set ref, cmp, center
         # self.fft_padding()
-        if self.fitting != "Translation":
+        if self.fitting == "Translation":
+            self.match_translation()
+        elif self.fitting == "pystackreg":
+            self.stackReg_translation()
+        else:
             self.fft_padding_my()
             self.match()
-        else:
-            self.match_translation()
 
     def define_fftsize(self):
         refshape = self.orig_ref.shape
@@ -218,6 +221,20 @@ class imregpoc:
         #results
         self.translation = np.float32([[1, 0, t1], [0, 1, t0]])
         self.param = [-t1, -t0, 0, 1 / 1]
+        self.peak = 0
+
+
+    def stackReg_translation(self):
+        rows, cols = self.orig_ref.shape
+        sr = StackReg(StackReg.TRANSLATION)
+        reg_mat = sr.register(self.orig_ref, self.orig_cmp)
+        out = sr.transform(self.orig_cmp)
+        out = out.astype(np.uint8)
+        im2_aligned = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+
+        #results
+        self.translation = np.float32([[1, 0, reg_mat[0, 2]], [0, 1, reg_mat[1, 2]]])
+        self.param = [reg_mat[0, 2], reg_mat[1, 2], 0, 1 / 1]
         self.peak = 0
 
 
@@ -638,13 +655,97 @@ def result_inspect(im1_my_, im2_my_, transmat):
 
 
 if __name__ == "__main__":
-    IR_images = sorted(glob.glob('data/IR_test/*.jpg'))
-    RGB_images = sorted(glob.glob('data/RGB_test/*.jpg'))
+    IR_images = sorted(glob.glob('triandata/IR/*.jpg'))
+    RGB_images = sorted(glob.glob('triandata/RGB/*.jpg'))
 
+    aaa = "./triandata/warped_RGB/" + RGB_images[9][15::]
+    # print("./triandata/wraped_RGB/" + RGB_images[9][13::])
     H_matrix_set = np.load("H_matrx.npy")
     # aaa = M[1, :, :]
 
-    for i in np.arange(len(RGB_images)):
+    # for i in np.arange(448, len(RGB_images)):
+    #     print(i, "IIIIII")
+    #     IR_img = cv2.imread(IR_images[i])
+    #     RGB_img = cv2.imread(RGB_images[i])
+    #
+    #     # Define 2x3 or 3x3 matrices and initialize the matrix to identity
+    #     initial_matrix = H_matrix_set[5, :, :]
+    #     initial_matrix = initial_matrix.astype(np.float32)
+    #
+    #     # Read image
+    #     ref, cmp = get_image(IR_img, RGB_img, initial_matrix)
+    #
+    #     # reference parameter (you can change this)
+    #     match = imregpoc(ref, cmp)
+    #     print(match.peak, match.param, match.isSucceed())
+    #     match_para = imregpoc(ref, cmp, fitting='Parabola')
+    #     print(match_para.peak, match_para.param, match_para.isSucceed())
+    #     match_cog = imregpoc(ref, cmp, fitting='Translation')
+    #     print(match_cog.peak, match_cog.param, match_cog.isSucceed())
+    #
+    #     RGB_img_warp = cv2.warpPerspective(RGB_img, initial_matrix, (IR_img.shape[1]+15, IR_img.shape[0]+15))
+    #
+    #     t_1_set = [match.param[0], match_para.param[0], match_cog.param[0]]
+    #     t_2_set = [match.param[1], match_para.param[1], match_cog.param[1]]
+    #
+    #     result_std_x = np.std(t_1_set)
+    #     result_std_y = np.std(t_2_set)
+    #
+    #     t_1 = -np.average(t_1_set)
+    #     t_2 = -np.average(t_2_set)
+    #
+    #     if np.average([result_std_y, result_std_x]) <= 1.5 and -7 <= t_2 < 0:
+    #         m_tran = np.float32([[1, 0, t_1],
+    #                              [0, 1, t_2]])
+    #         print(m_tran)
+    #     elif np.average([np.std([match.param[0], match_cog.param[0]]), np.std([match.param[1], match_cog.param[1]])]) <= 1.5 \
+    #             and -7<=-np.average([match.param[1], match_cog.param[1]])<0 and np.abs(np.average([match.param[0], match_cog.param[0]]))<1.5:
+    #
+    #         m_tran = np.float32([[1, 0, -np.average([match.param[0], match_cog.param[0]])],
+    #                              [0, 1, -np.average([match.param[1], match_cog.param[1]])]])
+    #         print(m_tran)
+    #     elif np.average([np.std([match_cog.param[0], match_para.param[0]]), np.std([match_cog.param[1], match_para.param[1]])]) <= 1.5 \
+    #             and -7<=-np.average([match_cog.param[1], match_para.param[1]]) < 0 and np.abs(np.average([match_cog.param[0], match_para.param[0]]))<1.5:
+    #
+    #         m_tran = np.float32([[1, 0, -np.average([match_cog.param[0], match_para.param[0]])],
+    #                              [0, 1, -np.average([match_cog.param[1], match_para.param[1]])]])
+    #         print(m_tran)
+    #     elif np.average([np.std([match.param[0], match_para.param[0]]), np.std([match_cog.param[1], match_para.param[1]])]) <= 1.5 \
+    #             and -7<=-np.average([match.param[1], match_para.param[1]]) < 0 and np.abs(np.average([match.param[0], match_para.param[0]]))<1.5:
+    #         m_tran = np.float32([[1, 0, -np.average([match.param[0], match_para.param[0]])],
+    #                              [0, 1, -np.average([match.param[1], match_para.param[1]])]])
+    #         print(m_tran)
+    #     elif np.abs(match_cog.param[0]) < 1.5 and np.abs(match_cog.param[1])<=7:
+    #         m_tran = np.float32([[1, 0, -match_cog.param[0]],
+    #                              [0, 1, -match_cog.param[1]]])
+    #         print(m_tran)
+    #     else:
+    #         m_tran = np.float32([[1, 0, 0], [0, 1, -4]])
+    #         print(m_tran)
+    #
+    #     aligned_RGB, merged = result_inspect(IR_img, RGB_img_warp, m_tran)
+    #     print("./triandata/warped_RGB/" + RGB_images[i][13::])
+    #     cv2.imwrite("./triandata/warped_RGB/" + RGB_images[i][13::], aligned_RGB)
+    #     cv2.imwrite("./triandata/merged/" + RGB_images[i][13::], merged)
+
+        # match.stitching()
+        # match_para.stitching()
+        # match_cog.stitching()
+
+        # match.display_my()
+        # match_para.display_my()
+        # match_cog.display_my()
+
+        # Save particular Image
+        # match.saveMat(match.LPA,'LPA.png')
+        # match.saveMat(match.LPA_filt,'LPA_filt.png')
+        # match.saveMat(match.LA,'LA.png')
+
+        # a, b = translation(IR_img, RGB_img_warp)
+        # translation2(IR_img, RGB_img_warp)
+        # print(a, b)
+    for i in np.arange(447, 448):
+        print(i, "IIIIII")
         IR_img = cv2.imread(IR_images[i])
         RGB_img = cv2.imread(RGB_images[i])
 
@@ -658,30 +759,55 @@ if __name__ == "__main__":
         # reference parameter (you can change this)
         match = imregpoc(ref, cmp)
         print(match.peak, match.param, match.isSucceed())
-        match_para = imregpoc(ref, cmp, fitting='Parabola')
+        match_para = imregpoc(ref, cmp, fitting='pystackreg')
         print(match_para.peak, match_para.param, match_para.isSucceed())
         match_cog = imregpoc(ref, cmp, fitting='Translation')
         print(match_cog.peak, match_cog.param, match_cog.isSucceed())
 
-        result_sum = match.isSucceed()+match_para.isSucceed()+match_cog.isSucceed()
-        result_std_x = np.std([match.param[0], match_para.param[0], match_cog.param[0]])
-        result_std_y = np.std([match.param[1], match_para.param[1], match_cog.param[1]])
+        RGB_img_warp = cv2.warpPerspective(RGB_img, initial_matrix, (IR_img.shape[1]+15, IR_img.shape[0]+15))
 
-        RGB_img_warp = cv2.warpPerspective(RGB_img, initial_matrix, (IR_img.shape[1]+10, IR_img.shape[0]+10))
+        t_1_set = [match.param[0], match_para.param[0], match_cog.param[0]]
+        t_2_set = [match.param[1], match_para.param[1], match_cog.param[1]]
 
-        if np.average([result_std_y, result_std_x]) <= 1.5:
-            m_tran = np.float32([[1, 0, -np.average([match.param[0], match_para.param[0], match_cog.param[0]])],
-                                 [0, 1, -np.average([match.param[1], match_para.param[1], match_cog.param[1]])]])
+        result_std_x = np.std(t_1_set)
+        result_std_y = np.std(t_2_set)
+
+        t_1 = -np.average(t_1_set)
+        t_2 = -np.average(t_2_set)
+
+        if np.average([result_std_y, result_std_x]) <= 1.5 and -7 <= t_2 < 0:
+            m_tran = np.float32([[1, 0, t_1],
+                                 [0, 1, t_2]])
             print(m_tran)
-            aligned_RGB, merged = result_inspect(IR_img, RGB_img_warp, m_tran)
+        elif np.average([np.std([match.param[0], match_cog.param[0]]), np.std([match.param[1], match_cog.param[1]])]) <= 1.5 \
+                and -7<=-np.average([match.param[1], match_cog.param[1]])<0 and np.abs(np.average([match.param[0], match_cog.param[0]]))<1.5:
+
+            m_tran = np.float32([[1, 0, -np.average([match.param[0], match_cog.param[0]])],
+                                 [0, 1, -np.average([match.param[1], match_cog.param[1]])]])
+            print(m_tran)
+        elif np.average([np.std([match_cog.param[0], match_para.param[0]]), np.std([match_cog.param[1], match_para.param[1]])]) <= 1.5 \
+                and -7<=-np.average([match_cog.param[1], match_para.param[1]]) < 0 and np.abs(np.average([match_cog.param[0], match_para.param[0]]))<1.5:
+
+            m_tran = np.float32([[1, 0, -np.average([match_cog.param[0], match_para.param[0]])],
+                                 [0, 1, -np.average([match_cog.param[1], match_para.param[1]])]])
+            print(m_tran)
+        elif np.average([np.std([match.param[0], match_para.param[0]]), np.std([match_cog.param[1], match_para.param[1]])]) <= 1.5 \
+                and -7<=-np.average([match.param[1], match_para.param[1]]) < 0 and np.abs(np.average([match.param[0], match_para.param[0]]))<1.5:
+            m_tran = np.float32([[1, 0, -np.average([match.param[0], match_para.param[0]])],
+                                 [0, 1, -np.average([match.param[1], match_para.param[1]])]])
+            print(m_tran)
+        elif np.abs(match_cog.param[0]) < 1.5 and np.abs(match_cog.param[1])<=7:
+            m_tran = np.float32([[1, 0, -match_cog.param[0]],
+                                 [0, 1, -match_cog.param[1]]])
+            print(m_tran)
         else:
             m_tran = np.float32([[1, 0, 0], [0, 1, -4]])
             print(m_tran)
-            aligned_RGB, merged = result_inspect(IR_img, RGB_img_warp, m_tran)
 
-        print("./data/wraped_RGB_3/" + RGB_images[i][14::])
-        cv2.imwrite("./data/wraped_RGB_3/" + RGB_images[i][14::], aligned_RGB)
-        cv2.imwrite("./data/merged_3/" + RGB_images[i][14::], merged)
+        aligned_RGB, merged = result_inspect(IR_img, RGB_img_warp, m_tran)
+        print("./triandata/warped_RGB/" + RGB_images[i][13::])
+        cv2.imwrite("./triandata/warped_RGB/" + RGB_images[i][13::], aligned_RGB)
+        cv2.imwrite("./triandata/merged/" + RGB_images[i][13::], merged)
 
         # match.stitching()
         # match_para.stitching()
